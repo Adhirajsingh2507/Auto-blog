@@ -3,7 +3,7 @@
 A tiny, zero-dependency static blog generator. Write posts in **Markdown or HTML**,
 drop them in a folder, push — and they appear on an editorial-style site deployed to Vercel.
 
-**Live:** https://adhiraj-blog.vercel.app
+**Live:** https://adhiraj-blog-ivory.vercel.app
 
 ---
 
