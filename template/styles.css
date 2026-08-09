@@ -1,0 +1,120 @@
+/* "Editorial Gallery" — original design, inspired by the museum/magazine-wall aesthetic.
+   Edit freely; copied to dist/ on build. */
+:root {
+  --paper: #f4f1ea;      /* warm off-white canvas */
+  --ink: #1a1a1a;        /* near-black text */
+  --ink-soft: #6b6558;   /* muted captions/dates */
+  --line: #d9d3c6;       /* hairlines */
+  --accent: #b23a2f;     /* editorial red, used sparingly */
+  --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --measure: 40rem;      /* reading width for articles */
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 17px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+
+/* ---------- Masthead ---------- */
+.site-header { padding: 96px 0 56px; text-align: center; border-bottom: 1px solid var(--line); }
+.site-header .kicker {
+  font-family: var(--sans); font-size: .72rem; letter-spacing: .32em;
+  text-transform: uppercase; color: var(--ink-soft); margin: 0 0 20px;
+}
+.site-header h1 {
+  font-family: var(--serif); font-weight: 400;
+  font-size: clamp(3rem, 9vw, 6.5rem); line-height: .95; letter-spacing: -0.02em; margin: 0;
+}
+.site-header p {
+  font-family: var(--serif); font-style: italic; color: var(--ink-soft);
+  font-size: clamp(1.1rem, 2.4vw, 1.5rem); margin: 18px 0 0;
+}
+
+/* ---------- Gallery wall (homepage) ---------- */
+/* Staggered multi-column layout: cards pack like a curated wall and reflow responsively. */
+.gallery { columns: 3 260px; column-gap: 56px; padding: 64px 0 120px; }
+.tile {
+  break-inside: avoid; display: block; margin: 0 0 64px;
+  position: relative; transition: transform .3s ease;
+}
+.tile:hover { transform: translateY(-4px); }
+.tile:hover .tile-title { text-decoration: underline; text-underline-offset: 4px; }
+/* varied sizes + offsets to break the grid feel — assigned by index in build.js */
+.tile.s-lg { font-size: 1.15rem; }
+.tile.s-sm { font-size: .95rem; }
+.tile.off-1 { margin-top: 40px; }
+.tile.off-2 { margin-top: 88px; }
+.tile.off-3 { margin-top: 16px; }
+.tile .num {
+  font-family: var(--sans); font-size: .72rem; letter-spacing: .1em;
+  color: var(--ink-soft); display: block; margin-bottom: 10px;
+}
+.tile-title {
+  font-family: var(--serif); font-weight: 400; letter-spacing: -0.01em;
+  font-size: clamp(1.6rem, 3.4vw, 2.4rem); line-height: 1.05; margin: 0;
+}
+.tile time { display: block; margin-top: 10px; font-family: var(--sans);
+  font-size: .74rem; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.tile p { color: var(--ink-soft); margin: 12px 0 0; font-size: .95rem; line-height: 1.6; }
+.empty { text-align: center; color: var(--ink-soft); font-family: var(--serif);
+  font-style: italic; font-size: 1.4rem; padding: 100px 0 140px; }
+
+/* ---------- Article ---------- */
+.article { max-width: var(--measure); margin: 0 auto; padding: 40px 32px 120px; }
+.back { display: inline-block; margin: 32px 0; font-family: var(--sans);
+  font-size: .74rem; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); }
+.back:hover { color: var(--ink); }
+.article header { margin: 8px 0 56px; text-align: center; }
+.article header time { font-family: var(--sans); font-size: .74rem; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--accent); }
+.article h1 { font-family: var(--serif); font-weight: 400;
+  font-size: clamp(2.4rem, 6vw, 4rem); line-height: 1.02; letter-spacing: -0.02em; margin: 14px 0 0; }
+.article :is(h2,h3) { font-family: var(--serif); font-weight: 400; letter-spacing: -0.01em;
+  line-height: 1.15; margin-top: 1.8em; }
+.article h2 { font-size: 1.9rem; }
+.article h3 { font-size: 1.4rem; }
+.article p { margin: 1.2em 0; }
+.article img { max-width: 100%; height: auto; margin: 2em 0; }
+.article figure { margin: 2.4em 0; }
+.article figcaption { font-size: .8rem; color: var(--ink-soft); text-align: center; margin-top: 10px; }
+.article a[href] { border-bottom: 1px solid var(--accent); }
+.article blockquote { font-family: var(--serif); font-style: italic; font-size: 1.4rem;
+  line-height: 1.4; color: var(--ink); border: 0; margin: 1.6em 0; padding: 0; text-align: center; }
+.article pre { background: #efe9dd; border: 1px solid var(--line); padding: 18px;
+  overflow-x: auto; font-size: .85rem; }
+.article code { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+.article hr { border: 0; border-top: 1px solid var(--line); margin: 3em auto; width: 40%; }
+
+.site-footer { border-top: 1px solid var(--line); padding: 40px 0; text-align: center;
+  font-family: var(--sans); font-size: .74rem; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ink-soft); }
+.footer-links a { color: var(--ink); }
+.footer-links a:hover { color: var(--accent); }
+.footer-links .dot { margin: 0 12px; color: var(--line); }
+.footer-copy { margin: 14px 0 0; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 640px) {
+  .gallery { columns: 1; column-gap: 0; padding: 48px 0 80px; }
+  .tile, .tile.off-1, .tile.off-2, .tile.off-3 { margin-top: 0; margin-bottom: 48px; }
+  .site-header { padding: 64px 0 40px; }
+}
+/* ---------- Scroll-reveal motion ---------- */
+/* Entrance uses a keyframe animation (not transition) so hover transforms stay snappy. */
+.reveal { opacity: 0; }
+.reveal.is-in { opacity: 1; animation: reveal-in .9s cubic-bezier(.22,.61,.36,1) var(--d, 0ms); }
+@keyframes reveal-in { from { opacity: 0; transform: translateY(22px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; scroll-behavior: auto; }
+  .reveal, .reveal.is-in { opacity: 1 !important; animation: none !important; }
+}
