@@ -4,8 +4,6 @@ date: 2026-08-10
 description: A local-first financial advisor where the LLM reasons but never does the math — deterministic Python does.
 -->
 
-# Building a Multi-Agent Personal CFO with Gemma
-
 Most "AI financial advisor" demos ask a language model to add up your bills.
 That's the one thing an LLM is *worst* at. So I built the opposite: a system
 where **Gemma reasons and routes, but every number comes from deterministic
