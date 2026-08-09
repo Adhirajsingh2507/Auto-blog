@@ -56,3 +56,5 @@ Edit the constants at the top of `build.js`: `SITE_TITLE`, `SITE_KICKER`,
 ## License
 
 [MIT](./LICENSE) © Adhiraj Singh
+
+<!-- auto-deploy test -->
