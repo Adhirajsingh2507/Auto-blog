@@ -1,118 +1,238 @@
-/* "Editorial Gallery" — original design, inspired by the museum/magazine-wall aesthetic.
-   Edit freely; copied to dist/ on build. */
+/* "Spatial Index" — a pannable gallery of cards for a personal site.
+   Dark-first, warm near-black ground + single marigold accent, Fraunces serif
+   paired with IBM Plex Mono. Copied to dist/ on build. */
+
+/* ---------- Theme tokens (three states: bare :root = light, dark via media, [data-theme] wins) ---------- */
 :root {
-  --paper: #f4f1ea;      /* warm off-white canvas */
-  --ink: #1a1a1a;        /* near-black text */
-  --ink-soft: #6b6558;   /* muted captions/dates */
-  --line: #d9d3c6;       /* hairlines */
-  --accent: #b23a2f;     /* editorial red, used sparingly */
-  --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
-  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --measure: 40rem;      /* reading width for articles */
+  --ground: #efe9dd;     /* light canvas */
+  --card:   #fbf8f1;     /* raised card */
+  --ink:    #1a1712;     /* near-black text */
+  --muted:  #6b6558;     /* captions/meta */
+  --line:   #d9d2c4;     /* hairlines */
+  --accent: #b7690f;     /* amber, darkened for contrast on light */
+  --accent-soft: #b7690f22;
+  --serif: "Fraunces", Georgia, "Times New Roman", serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --measure: 40rem;
 }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0e0d0b;
+    --card:   #181613;
+    --ink:    #ede8de;
+    --muted:  #8a8377;
+    --line:   #2a2723;
+    --accent: #e8a33d;
+    --accent-soft: #e8a33d1f;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #0e0d0b;
+  --card:   #181613;
+  --ink:    #ede8de;
+  --muted:  #8a8377;
+  --line:   #2a2723;
+  --accent: #e8a33d;
+  --accent-soft: #e8a33d1f;
+}
+
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body {
   margin: 0;
-  background: var(--paper);
+  background: var(--ground);
   color: var(--ink);
-  font-family: var(--sans);
-  font-size: 17px;
-  line-height: 1.7;
+  font-family: var(--serif);
+  font-size: 18px;
+  line-height: 1.65;
   -webkit-font-smoothing: antialiased;
+  font-optical-sizing: auto;
 }
 a { color: inherit; text-decoration: none; }
 .wrap { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+.mono { font-family: var(--mono); }
 
-/* ---------- Masthead ---------- */
-.site-header { padding: 96px 0 56px; text-align: center; border-bottom: 1px solid var(--line); }
-.site-header .kicker {
-  font-family: var(--sans); font-size: .72rem; letter-spacing: .32em;
-  text-transform: uppercase; color: var(--ink-soft); margin: 0 0 20px;
+/* ===================================================================
+   HOME — spatial canvas
+   =================================================================== */
+body.home { overflow: hidden; }             /* canvas owns the viewport */
+
+.hud {
+  position: fixed; inset: 0 0 auto 0; z-index: 20;
+  display: flex; align-items: center; gap: 24px;
+  padding: 20px 28px; pointer-events: none;
+  font-family: var(--mono); font-size: .72rem; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--muted);
+  mix-blend-mode: difference;               /* stays legible over any card */
 }
-.site-header h1 {
-  font-family: var(--serif); font-weight: 400;
-  font-size: clamp(3rem, 9vw, 6.5rem); line-height: .95; letter-spacing: -0.02em; margin: 0;
+.hud-name { color: #fff; }
+.hud-clock { font-variant-numeric: tabular-nums; }
+.hud-hint { margin-left: auto; }
+.hud-hint::before { content: "◇ "; color: var(--accent); }
+
+.canvas {
+  position: relative; width: 100vw; height: 100vh;
+  overflow: hidden; cursor: grab;
+  touch-action: none;
+  background-image: radial-gradient(var(--line) 1px, transparent 1px);
+  background-size: 48px 48px;
 }
-.site-header p {
-  font-family: var(--serif); font-style: italic; color: var(--ink-soft);
-  font-size: clamp(1.1rem, 2.4vw, 1.5rem); margin: 18px 0 0;
+.canvas.dragging { cursor: grabbing; }
+.cards {
+  position: absolute; top: 0; left: 0; width: 2000px; height: 1400px;
+  transform: translate(var(--pan-x, 0px), var(--pan-y, 0px));
+  will-change: transform;
 }
 
-/* ---------- Gallery wall (homepage) ---------- */
-/* Staggered multi-column layout: cards pack like a curated wall and reflow responsively. */
-.gallery { columns: 3 260px; column-gap: 56px; padding: 64px 0 120px; }
-.tile {
-  break-inside: avoid; display: block; margin: 0 0 64px;
-  position: relative; transition: transform .3s ease;
+.card {
+  position: absolute;
+  left: calc(var(--x) * 1px); top: calc(var(--y) * 1px);
+  width: 340px; max-width: 78vw;
+  transform: translate(calc(var(--pan-x, 0px) * var(--z, 0)),
+                       calc(var(--pan-y, 0px) * var(--z, 0)))
+             rotate(var(--r, 0deg));
 }
-.tile:hover { transform: translateY(-4px); }
-.tile:hover .tile-title { text-decoration: underline; text-underline-offset: 4px; }
-/* varied sizes + offsets to break the grid feel — assigned by index in build.js */
-.tile.s-lg { font-size: 1.15rem; }
-.tile.s-sm { font-size: .95rem; }
-.tile.off-1 { margin-top: 40px; }
-.tile.off-2 { margin-top: 88px; }
-.tile.off-3 { margin-top: 16px; }
-.tile .num {
-  font-family: var(--sans); font-size: .72rem; letter-spacing: .1em;
-  color: var(--ink-soft); display: block; margin-bottom: 10px;
+.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; }
+.card-inner {
+  background: var(--card); border: 1px solid var(--line);
+  padding: 26px 26px 28px; border-radius: 2px;
+  box-shadow: 0 18px 40px -24px rgba(0,0,0,.55);
+  transition: transform .32s cubic-bezier(.22,.61,.36,1),
+              border-color .32s, box-shadow .32s;
 }
-.tile-title {
-  font-family: var(--serif); font-weight: 400; letter-spacing: -0.01em;
-  font-size: clamp(1.6rem, 3.4vw, 2.4rem); line-height: 1.05; margin: 0;
+a.card:hover .card-inner {
+  transform: translateY(-8px);
+  border-color: var(--accent);
+  box-shadow: 0 30px 60px -28px rgba(0,0,0,.7);
 }
-.tile time { display: block; margin-top: 10px; font-family: var(--sans);
-  font-size: .74rem; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
-.tile p { color: var(--ink-soft); margin: 12px 0 0; font-size: .95rem; line-height: 1.6; }
-.empty { text-align: center; color: var(--ink-soft); font-family: var(--serif);
-  font-style: italic; font-size: 1.4rem; padding: 100px 0 140px; }
 
-/* ---------- Article ---------- */
+/* identity card */
+.card--id { width: 460px; z-index: 5; }
+.card--id .card-inner {
+  background: transparent; border: 0; box-shadow: none; padding: 0;
+}
+.card--id .eyebrow {
+  font-family: var(--mono); font-size: .68rem; letter-spacing: .28em;
+  text-transform: uppercase; color: var(--muted); margin: 0 0 18px;
+}
+.card--id h1 {
+  font-family: var(--serif); font-weight: 340;
+  font-size: clamp(3.4rem, 8vw, 6rem); line-height: .9;
+  letter-spacing: -.02em; margin: 0; text-wrap: balance;
+  font-variation-settings: "opsz" 144, "SOFT" 40;
+}
+.card--id .role {
+  font-family: var(--serif); font-style: italic; color: var(--muted);
+  font-size: 1.3rem; margin: 20px 0 0; max-width: 22ch;
+}
+
+/* post card */
+.card--post .num {
+  font-family: var(--mono); font-size: .68rem; letter-spacing: .1em;
+  color: var(--accent);
+}
+.card--post time {
+  display: block; font-family: var(--mono); font-size: .68rem;
+  letter-spacing: .12em; color: var(--muted); margin: 4px 0 14px;
+}
+.card--post h2 {
+  font-family: var(--serif); font-weight: 380; letter-spacing: -.01em;
+  font-size: 1.5rem; line-height: 1.12; margin: 0;
+  transition: color .32s;
+}
+a.card--post:hover h2 { color: var(--accent); }
+.card--post p {
+  color: var(--muted); font-size: .92rem; line-height: 1.55; margin: 12px 0 0;
+}
+
+/* about + contact cards */
+.tag {
+  display: inline-block; font-family: var(--mono); font-size: .66rem;
+  letter-spacing: .2em; text-transform: uppercase; color: var(--accent);
+  margin-bottom: 14px;
+}
+.card--about p { margin: 0; font-size: 1.05rem; line-height: 1.5; }
+.card--contact ul { list-style: none; margin: 0; padding: 0; }
+.card--contact li + li { border-top: 1px solid var(--line); }
+.channel {
+  display: flex; align-items: baseline; gap: 12px; padding: 12px 0;
+  font-family: var(--mono); font-size: .82rem; letter-spacing: .04em;
+  transition: color .2s, padding-left .2s;
+}
+.channel .idx { color: var(--muted); font-size: .68rem; }
+.channel .arrow { margin-left: auto; color: var(--muted); transition: transform .2s; }
+.channel:hover { color: var(--accent); padding-left: 6px; }
+.channel:hover .arrow { transform: translate(3px, -3px); color: var(--accent); }
+.channel:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* ===================================================================
+   POST PAGE — reading column
+   =================================================================== */
 .article { max-width: var(--measure); margin: 0 auto; padding: 40px 32px 120px; }
-.back { display: inline-block; margin: 32px 0; font-family: var(--sans);
-  font-size: .74rem; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); }
-.back:hover { color: var(--ink); }
-.article header { margin: 8px 0 56px; text-align: center; }
-.article header time { font-family: var(--sans); font-size: .74rem; letter-spacing: .12em;
+.back { display: inline-block; margin: 32px 0; font-family: var(--mono);
+  font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.back:hover { color: var(--accent); }
+.article header { margin: 8px 0 56px; }
+.article header time { font-family: var(--mono); font-size: .72rem; letter-spacing: .14em;
   text-transform: uppercase; color: var(--accent); }
-.article h1 { font-family: var(--serif); font-weight: 400;
-  font-size: clamp(2.4rem, 6vw, 4rem); line-height: 1.02; letter-spacing: -0.02em; margin: 14px 0 0; }
-.article :is(h2,h3) { font-family: var(--serif); font-weight: 400; letter-spacing: -0.01em;
-  line-height: 1.15; margin-top: 1.8em; }
-.article h2 { font-size: 1.9rem; }
-.article h3 { font-size: 1.4rem; }
+.article h1 { font-family: var(--serif); font-weight: 360;
+  font-size: clamp(2.4rem, 6vw, 3.6rem); line-height: 1.04; letter-spacing: -.02em;
+  margin: 14px 0 0; text-wrap: balance; font-variation-settings: "opsz" 120; }
+.article :is(h2,h3) { font-family: var(--serif); font-weight: 420; letter-spacing: -.01em;
+  line-height: 1.18; margin-top: 1.8em; }
+.article h2 { font-size: 1.8rem; }
+.article h3 { font-size: 1.35rem; }
 .article p { margin: 1.2em 0; }
-.article img { max-width: 100%; height: auto; margin: 2em 0; }
+.article img { max-width: 100%; height: auto; margin: 2em 0; border-radius: 2px; }
 .article figure { margin: 2.4em 0; }
-.article figcaption { font-size: .8rem; color: var(--ink-soft); text-align: center; margin-top: 10px; }
+.article figcaption { font-family: var(--mono); font-size: .74rem; color: var(--muted);
+  text-align: center; margin-top: 10px; }
 .article a[href] { border-bottom: 1px solid var(--accent); }
-.article blockquote { font-family: var(--serif); font-style: italic; font-size: 1.4rem;
-  line-height: 1.4; color: var(--ink); border: 0; margin: 1.6em 0; padding: 0; text-align: center; }
-.article pre { background: #efe9dd; border: 1px solid var(--line); padding: 18px;
-  overflow-x: auto; font-size: .85rem; }
-.article code { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+.article a[href]:hover { color: var(--accent); }
+.article blockquote { font-family: var(--serif); font-style: italic; font-size: 1.45rem;
+  line-height: 1.4; color: var(--ink); margin: 1.6em 0; padding: 0 0 0 24px;
+  border-left: 2px solid var(--accent); }
+.article ul, .article ol { padding-left: 1.3em; }
+.article li { margin: .4em 0; }
+.article pre { background: var(--card); border: 1px solid var(--line); border-radius: 2px;
+  padding: 18px; overflow-x: auto; font-size: .82rem; }
+.article :not(pre) > code { font-family: var(--mono); font-size: .88em;
+  background: var(--accent-soft); padding: .1em .35em; border-radius: 2px; }
+.article pre code { font-family: var(--mono); }
 .article hr { border: 0; border-top: 1px solid var(--line); margin: 3em auto; width: 40%; }
 
+/* ---------- Footer ---------- */
 .site-footer { border-top: 1px solid var(--line); padding: 40px 0; text-align: center;
-  font-family: var(--sans); font-size: .74rem; letter-spacing: .12em;
-  text-transform: uppercase; color: var(--ink-soft); }
+  font-family: var(--mono); font-size: .72rem; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--muted); }
+.site-footer .wrap { padding: 0 32px; }
 .footer-links a { color: var(--ink); }
 .footer-links a:hover { color: var(--accent); }
 .footer-links .dot { margin: 0 12px; color: var(--line); }
 .footer-copy { margin: 14px 0 0; }
 
-/* ---------- Responsive ---------- */
-@media (max-width: 640px) {
-  .gallery { columns: 1; column-gap: 0; padding: 48px 0 80px; }
-  .tile, .tile.off-1, .tile.off-2, .tile.off-3 { margin-top: 0; margin-bottom: 48px; }
-  .site-header { padding: 64px 0 40px; }
+/* ===================================================================
+   FALLBACK — mobile + reduced motion: canvas becomes a static column
+   =================================================================== */
+@media (max-width: 820px), (prefers-reduced-motion: reduce) {
+  body.home { overflow: auto; }
+  .hud { position: static; mix-blend-mode: normal; color: var(--muted);
+    justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--line); }
+  .hud-name { color: var(--ink); }
+  .hud-hint { display: none; }
+  .canvas { position: static; width: auto; height: auto; overflow: visible;
+    cursor: auto; background: none; padding: 8px 20px 40px; }
+  .cards { position: static; width: auto; height: auto; transform: none;
+    display: flex; flex-direction: column; gap: 22px; max-width: 640px; margin: 0 auto; }
+  .card { position: static; width: 100%; max-width: none; transform: none !important; }
+  .card--id { margin: 24px 0 8px; }
+  a.card:hover .card-inner { transform: none; }
 }
-/* ---------- Scroll-reveal motion ---------- */
-/* Entrance uses a keyframe animation (not transition) so hover transforms stay snappy. */
+
+/* ---------- Scroll-reveal ---------- */
 .reveal { opacity: 0; }
-.reveal.is-in { opacity: 1; animation: reveal-in .9s cubic-bezier(.22,.61,.36,1) var(--d, 0ms); }
-@keyframes reveal-in { from { opacity: 0; transform: translateY(22px); } }
+.reveal.is-in { opacity: 1; animation: reveal-in .8s cubic-bezier(.22,.61,.36,1) var(--d, 0ms); }
+@keyframes reveal-in { from { opacity: 0; transform: translateY(18px); } }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; scroll-behavior: auto; }

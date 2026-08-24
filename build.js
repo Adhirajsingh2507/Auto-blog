@@ -22,11 +22,14 @@ const TEMPLATE_DIR = path.join(ROOT, "template");
 
 const SITE_TITLE = "Adhiraj Singh";
 const SITE_KICKER = "Notes, Ideas & Experiments";
-const SITE_TAGLINE =
-  "Thoughts on technology, AI, building things, and everything I’m learning along the way.";
+const SITE_ROLE = "Engineer building systems that reason.";
+const SITE_ABOUT =
+  "I build small, deterministic systems around large, unreliable models — trust layers, local-first agents, and things that go faster by deleting the fancy parts. This is where I write it down.";
 const SITE_LINKS = [
   { label: "GitHub", url: "https://github.com/Adhirajsingh2507" },
   { label: "LinkedIn", url: "https://www.linkedin.com/in/adhiraj-singh-39631b363/" },
+  { label: "Instagram", url: "https://www.instagram.com/coding_andcoffee" },
+  { label: "Mail", url: "mailto:techadhiraj07@gmail.com" },
 ];
 
 // --- helpers ---------------------------------------------------------------
@@ -146,12 +149,83 @@ function pageShell({ title, body, cssPath, bodyClass }) {
 <title>${esc(title)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..500,0..100;1,9..144,300..500,0..100&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="${cssPath}">
 </head>
 <body class="${bodyClass}">
 ${body}
 <script>
+/* Spatial canvas: drag/wheel pan + depth parallax + live clock.
+   Runs only on the home page with a fine pointer and motion allowed;
+   otherwise the CSS fallback shows a static stacked column. */
+(function () {
+  var canvas = document.getElementById('canvas');
+  if (!canvas) return;
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var coarse = window.matchMedia('(max-width: 820px), (pointer: coarse)').matches;
+
+  // live UTC clock (runs regardless of layout mode)
+  var clock = document.getElementById('clock');
+  if (clock) {
+    var tick = function () {
+      clock.textContent = new Date().toISOString().slice(11, 19) + ' UTC';
+    };
+    tick(); setInterval(tick, 1000);
+  }
+
+  if (reduce || coarse) return; // static fallback owns layout
+
+  var cards = document.getElementById('cards');
+  var W = 2000, H = 1400;
+  // clamp pan so the field always covers the viewport
+  var panX, panY;
+  function clamp() {
+    var minX = window.innerWidth - W, minY = window.innerHeight - H;
+    panX = Math.min(0, Math.max(minX, panX));
+    panY = Math.min(0, Math.max(minY, panY));
+  }
+  function apply() {
+    cards.style.setProperty('--pan-x', panX + 'px');
+    cards.style.setProperty('--pan-y', panY + 'px');
+  }
+  // start centered on the identity card
+  var id = cards.querySelector('.card--id');
+  var cx = id ? parseFloat(id.style.getPropertyValue('--x')) + 230 : W / 2;
+  var cy = id ? parseFloat(id.style.getPropertyValue('--y')) + 120 : H / 2;
+  panX = window.innerWidth / 2 - cx;
+  panY = window.innerHeight / 2 - cy;
+  clamp(); apply();
+
+  // staggered entrance (IntersectionObserver reveal can't see off-viewport cards)
+  var all = cards.querySelectorAll('.card');
+  all.forEach(function (el, i) { setTimeout(function () { el.classList.add('is-in'); }, 80 + i * 70); });
+
+  // drag to pan
+  var dragging = false, sx = 0, sy = 0, px = 0, py = 0, moved = false;
+  canvas.addEventListener('pointerdown', function (e) {
+    dragging = true; moved = false; sx = e.clientX; sy = e.clientY; px = panX; py = panY;
+    canvas.classList.add('dragging'); canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (!dragging) return;
+    var dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
+    panX = px + dx; panY = py + dy; clamp(); apply();
+  });
+  var endDrag = function () { dragging = false; canvas.classList.remove('dragging'); };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  // suppress the click that follows a drag so cards don't navigate on release
+  canvas.addEventListener('click', function (e) { if (moved) { e.preventDefault(); e.stopPropagation(); } }, true);
+
+  // two-finger / wheel scroll pans
+  canvas.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    panX -= e.deltaX; panY -= e.deltaY; clamp(); apply();
+  }, { passive: false });
+
+  window.addEventListener('resize', function () { clamp(); apply(); });
+})();
 (function () {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   var targets = document.querySelectorAll('.reveal');
@@ -249,32 +323,66 @@ ${footerHtml}`;
 // newest first; posts without a date sink to the bottom
 posts.sort((a, b) => (b.date || "").localeCompare(a.date || "") || a.title.localeCompare(b.title));
 
-// deterministic "scatter": cycle through size + vertical-offset variants by index
-const SIZE = ["s-lg", "", "s-sm", "", "s-lg", "s-sm"];
-const OFF = ["", "off-2", "off-1", "off-3", "off-1", ""];
+// deterministic card placement on the 2000x1400 canvas (see styles.css .cards).
+// {x,y}=top-left px, z=parallax depth (± drift on pan), r=rotation.
+const pos = (x, y, z, r) => `--x:${x};--y:${y};--z:${z};--r:${r}deg`;
+const POST_POS = [
+  [720, 170, 0.10, 2], [1200, 120, -0.08, -2.5], [1540, 480, 0.13, 1.5],
+  [1180, 770, -0.06, -2], [300, 980, 0.09, 2.5], [760, 840, -0.11, -1.5],
+];
 
-const tiles = posts
+const postCards = posts
   .map((p, i) => {
-    const cls = ["tile", "reveal", SIZE[i % SIZE.length], OFF[i % OFF.length]].filter(Boolean).join(" ");
+    const [x, y, z, r] = POST_POS[i % POST_POS.length];
     const num = String(i + 1).padStart(2, "0");
-    const delay = (i % 3) * 90; // light stagger within each row
-    return `<a class="${cls}" style="--d:${delay}ms" href="./${p.slug}/index.html">
+    return `<a class="card card--post reveal" style="${pos(x, y, z, r)};--d:${(i % 3) * 80}ms" href="./${p.slug}/index.html">
+<div class="card-inner">
 <span class="num">[${num}]</span>
-<h2 class="tile-title">${esc(p.title)}</h2>
 ${p.date ? `<time datetime="${esc(p.date)}">${esc(p.date)}</time>` : ""}
+<h2>${esc(p.title)}</h2>
 ${p.description ? `<p>${esc(p.description)}</p>` : ""}
-</a>`;
+</div></a>`;
   })
   .join("\n");
 
-const home = `<header class="site-header reveal is-in"><div class="wrap">
-<p class="kicker">${esc(SITE_KICKER)}</p>
-<h1>${esc(SITE_TITLE)}</h1>
-<p>${esc(SITE_TAGLINE)}</p>
-</div></header>
-<main class="wrap">
-${posts.length ? `<div class="gallery">\n${tiles}\n</div>` : `<p class="empty">No posts yet — add a folder in posts/ with an index.md or index.html.</p>`}
-</main>
+const channelsHtml = SITE_LINKS.map(
+  (l, i) =>
+    `<li><a class="channel" href="${esc(l.url)}"${l.url.startsWith("mailto:") ? "" : ' target="_blank" rel="noopener"'}>
+<span class="idx mono">${String(i + 1).padStart(2, "0")}</span>${esc(l.label)}<span class="arrow">↗</span></a></li>`
+).join("\n");
+
+const idCard = `<section class="card card--id reveal" style="${pos(140, 500, 0.03, -2)}">
+<div class="card-inner">
+<p class="eyebrow">${esc(SITE_KICKER)} · Est. 2026</p>
+<h1>Adhiraj<br>Singh</h1>
+<p class="role">${esc(SITE_ROLE)}</p>
+</div></section>`;
+
+const aboutCard = `<section class="card card--about reveal" style="${pos(700, 610, -0.05, 1.5)}">
+<div class="card-inner">
+<span class="tag">// about</span>
+<p>${esc(SITE_ABOUT)}</p>
+</div></section>`;
+
+const contactCard = `<section class="card card--contact reveal" style="${pos(1200, 1050, 0.07, -2)}">
+<div class="card-inner">
+<span class="tag">// channels</span>
+<ul>${channelsHtml}</ul>
+</div></section>`;
+
+const home = `<div class="hud">
+<span class="hud-name">${esc(SITE_TITLE)}</span>
+<span class="hud-clock mono" id="clock">--:--:-- UTC</span>
+<span class="hud-hint">drag to explore</span>
+</div>
+<div class="canvas" id="canvas" role="region" aria-label="Site index — drag to explore">
+<div class="cards" id="cards">
+${idCard}
+${postCards}
+${aboutCard}
+${contactCard}
+</div>
+</div>
 ${footerHtml}`;
 
 fs.writeFileSync(
