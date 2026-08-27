@@ -140,7 +140,7 @@ function copyDir(src, dest) {
   }
 }
 
-function pageShell({ title, body, cssPath, bodyClass }) {
+function pageShell({ title, body, base, bodyClass, head = "" }) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -149,98 +149,13 @@ function pageShell({ title, body, cssPath, bodyClass }) {
 <title>${esc(title)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..500,0..100;1,9..144,300..500,0..100&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="${cssPath}">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="${base}styles.css">
 </head>
 <body class="${bodyClass}">
 ${body}
-<script>
-/* Spatial canvas: drag/wheel pan + depth parallax + live clock.
-   Runs only on the home page with a fine pointer and motion allowed;
-   otherwise the CSS fallback shows a static stacked column. */
-(function () {
-  var canvas = document.getElementById('canvas');
-  if (!canvas) return;
-  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var coarse = window.matchMedia('(max-width: 820px), (pointer: coarse)').matches;
-
-  // live UTC clock (runs regardless of layout mode)
-  var clock = document.getElementById('clock');
-  if (clock) {
-    var tick = function () {
-      clock.textContent = new Date().toISOString().slice(11, 19) + ' UTC';
-    };
-    tick(); setInterval(tick, 1000);
-  }
-
-  if (reduce || coarse) return; // static fallback owns layout
-
-  var cards = document.getElementById('cards');
-  var W = 2000, H = 1400;
-  // clamp pan so the field always covers the viewport
-  var panX, panY;
-  function clamp() {
-    var minX = window.innerWidth - W, minY = window.innerHeight - H;
-    panX = Math.min(0, Math.max(minX, panX));
-    panY = Math.min(0, Math.max(minY, panY));
-  }
-  function apply() {
-    cards.style.setProperty('--pan-x', panX + 'px');
-    cards.style.setProperty('--pan-y', panY + 'px');
-  }
-  // start centered on the identity card
-  var id = cards.querySelector('.card--id');
-  var cx = id ? parseFloat(id.style.getPropertyValue('--x')) + 230 : W / 2;
-  var cy = id ? parseFloat(id.style.getPropertyValue('--y')) + 120 : H / 2;
-  panX = window.innerWidth / 2 - cx;
-  panY = window.innerHeight / 2 - cy;
-  clamp(); apply();
-
-  // staggered entrance (IntersectionObserver reveal can't see off-viewport cards)
-  var all = cards.querySelectorAll('.card');
-  all.forEach(function (el, i) { setTimeout(function () { el.classList.add('is-in'); }, 80 + i * 70); });
-
-  // drag to pan
-  var dragging = false, sx = 0, sy = 0, px = 0, py = 0, moved = false;
-  canvas.addEventListener('pointerdown', function (e) {
-    dragging = true; moved = false; sx = e.clientX; sy = e.clientY; px = panX; py = panY;
-    canvas.classList.add('dragging'); canvas.setPointerCapture(e.pointerId);
-  });
-  canvas.addEventListener('pointermove', function (e) {
-    if (!dragging) return;
-    var dx = e.clientX - sx, dy = e.clientY - sy;
-    if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
-    panX = px + dx; panY = py + dy; clamp(); apply();
-  });
-  var endDrag = function () { dragging = false; canvas.classList.remove('dragging'); };
-  canvas.addEventListener('pointerup', endDrag);
-  canvas.addEventListener('pointercancel', endDrag);
-  // suppress the click that follows a drag so cards don't navigate on release
-  canvas.addEventListener('click', function (e) { if (moved) { e.preventDefault(); e.stopPropagation(); } }, true);
-
-  // two-finger / wheel scroll pans
-  canvas.addEventListener('wheel', function (e) {
-    e.preventDefault();
-    panX -= e.deltaX; panY -= e.deltaY; clamp(); apply();
-  }, { passive: false });
-
-  window.addEventListener('resize', function () { clamp(); apply(); });
-})();
-(function () {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  var targets = document.querySelectorAll('.reveal');
-  if (!('IntersectionObserver' in window) || !targets.length) {
-    targets.forEach(function (el) { el.classList.add('is-in'); });
-    return;
-  }
-  var io = new IntersectionObserver(function (entries) {
-    entries.forEach(function (e) {
-      if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); }
-    });
-  }, { threshold: 0, rootMargin: '0px 0px -8% 0px' });
-  targets.forEach(function (el) { io.observe(el); });
-})();
-</script>
+${head}
+<script src="${base}app.js" defer></script>
 </body>
 </html>`;
 }
@@ -249,18 +164,22 @@ ${body}
 module.exports = { parseMarkdown, parseMeta, slugify };
 if (require.main !== module) return;
 
-const linksHtml = SITE_LINKS.map(
-  (l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`
-).join('<span class="dot">·</span>');
-const footerHtml = `<footer class="site-footer"><div class="wrap">
-${linksHtml ? `<nav class="footer-links">${linksHtml}</nav>` : ""}
-<p class="footer-copy">&copy; ${new Date().getFullYear()} ${esc(SITE_TITLE)}</p>
+const isMail = (u) => u.startsWith("mailto:");
+const extAttr = (u) => (isMail(u) ? "" : ' target="_blank" rel="noopener"');
+const handleOf = (u) => (isMail(u) ? u.slice(7) : u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""));
+
+const footerHtml = `<footer class="site-footer"><div class="shell">
+<nav class="footer-links">${SITE_LINKS.map(
+  (l) => `<a href="${esc(l.url)}"${extAttr(l.url)}>${esc(l.label)}</a>`
+).join('<span class="dot">·</span>')}</nav>
+<span>&copy; ${new Date().getFullYear()} ${esc(SITE_TITLE)} · built from scratch</span>
 </div></footer>`;
 
 console.log("Building blog...");
 fs.rmSync(DIST, { recursive: true, force: true });
 fs.mkdirSync(DIST, { recursive: true });
 fs.copyFileSync(path.join(TEMPLATE_DIR, "styles.css"), path.join(DIST, "styles.css"));
+fs.copyFileSync(path.join(TEMPLATE_DIR, "app.js"), path.join(DIST, "app.js"));
 
 const posts = [];
 const usedSlugs = new Set();
@@ -299,8 +218,13 @@ for (const dir of dirs) {
   copyDir(dirPath, path.join(DIST, slug));
   fs.rmSync(path.join(DIST, slug, "index.md"), { force: true }); // don't ship the source
 
-  const article = `<main class="wrap article">
-<a class="back" href="../index.html">&larr; All posts</a>
+  const article = `<nav class="nav">
+<a class="brand magnetic" href="../index.html"><b>Adhiraj</b> Singh</a>
+<div class="nav-right">
+<a class="cmdk-btn magnetic" href="../index.html">Index</a></div>
+</nav>
+<main class="article">
+<a class="back magnetic" href="../index.html">&larr; All writing</a>
 <article class="reveal">
 <header>
 ${meta.date ? `<time datetime="${esc(meta.date)}">${esc(meta.date)}</time>` : ""}
@@ -313,7 +237,7 @@ ${footerHtml}`;
 
   fs.writeFileSync(
     path.join(DIST, slug, "index.html"),
-    pageShell({ title: `${title} — ${SITE_TITLE}`, body: article, cssPath: "../styles.css", bodyClass: "post" })
+    pageShell({ title: `${title} — ${SITE_TITLE}`, body: article, base: "../", bodyClass: "post" })
   );
 
   posts.push({ slug, title, date: meta.date || "", description: meta.description || "" });
@@ -323,71 +247,118 @@ ${footerHtml}`;
 // newest first; posts without a date sink to the bottom
 posts.sort((a, b) => (b.date || "").localeCompare(a.date || "") || a.title.localeCompare(b.title));
 
-// deterministic card placement on the 2000x1400 canvas (see styles.css .cards).
-// {x,y}=top-left px, z=parallax depth (± drift on pan), r=rotation.
-const pos = (x, y, z, r) => `--x:${x};--y:${y};--z:${z};--r:${r}deg`;
-const POST_POS = [
-  [720, 170, 0.10, 2], [1200, 120, -0.08, -2.5], [1540, 480, 0.13, 1.5],
-  [1180, 770, -0.06, -2], [300, 980, 0.09, 2.5], [760, 840, -0.11, -1.5],
-];
-
-const postCards = posts
+// --- home page -------------------------------------------------------------
+const entriesHtml = posts
   .map((p, i) => {
-    const [x, y, z, r] = POST_POS[i % POST_POS.length];
     const num = String(i + 1).padStart(2, "0");
-    return `<a class="card card--post reveal" style="${pos(x, y, z, r)};--d:${(i % 3) * 80}ms" href="./${p.slug}/index.html">
-<div class="card-inner">
-<span class="num">[${num}]</span>
+    return `<a class="entry reveal" style="--d:${(i % 4) * 60}ms" href="./${p.slug}/index.html">
+<span class="n">${num}</span>
+<div class="mid">
 ${p.date ? `<time datetime="${esc(p.date)}">${esc(p.date)}</time>` : ""}
-<h2>${esc(p.title)}</h2>
-${p.description ? `<p>${esc(p.description)}</p>` : ""}
-</div></a>`;
+<h3>${esc(p.title)}</h3>
+${p.description ? `<p class="desc">${esc(p.description)}</p>` : ""}
+</div>
+<span class="go" aria-hidden="true">&#8599;</span>
+</a>`;
   })
   .join("\n");
 
 const channelsHtml = SITE_LINKS.map(
   (l, i) =>
-    `<li><a class="channel" href="${esc(l.url)}"${l.url.startsWith("mailto:") ? "" : ' target="_blank" rel="noopener"'}>
-<span class="idx mono">${String(i + 1).padStart(2, "0")}</span>${esc(l.label)}<span class="arrow">↗</span></a></li>`
+    `<a class="channel magnetic" href="${esc(l.url)}"${extAttr(l.url)}>
+<span class="idx">${String(i + 1).padStart(2, "0")}</span>
+<span class="name">${esc(l.label)}</span>
+<span class="handle">${esc(handleOf(l.url))} &#8599;</span>
+</a>`
 ).join("\n");
 
-const idCard = `<section class="card card--id reveal" style="${pos(140, 500, 0.03, -2)}">
-<div class="card-inner">
-<p class="eyebrow">${esc(SITE_KICKER)} · Est. 2026</p>
-<h1>Adhiraj<br>Singh</h1>
-<p class="role">${esc(SITE_ROLE)}</p>
-</div></section>`;
-
-const aboutCard = `<section class="card card--about reveal" style="${pos(700, 610, -0.05, 1.5)}">
-<div class="card-inner">
-<span class="tag">// about</span>
-<p>${esc(SITE_ABOUT)}</p>
-</div></section>`;
-
-const contactCard = `<section class="card card--contact reveal" style="${pos(1200, 1050, 0.07, -2)}">
-<div class="card-inner">
-<span class="tag">// channels</span>
-<ul>${channelsHtml}</ul>
-</div></section>`;
-
-const home = `<div class="hud">
-<span class="hud-name">${esc(SITE_TITLE)}</span>
-<span class="hud-clock mono" id="clock">--:--:-- UTC</span>
-<span class="hud-hint">drag to explore</span>
+const home = `<nav class="nav">
+<a class="brand magnetic" href="#top"><b>Adhiraj</b> Singh</a>
+<div class="nav-right">
+<a href="#writing">Writing</a>
+<a href="#about">About</a>
+<a href="#channels">Channels</a>
 </div>
-<div class="canvas" id="canvas" role="region" aria-label="Site index — drag to explore">
-<div class="cards" id="cards">
-${idCard}
-${postCards}
-${aboutCard}
-${contactCard}
+</nav>
+
+<header class="hero" id="top">
+<canvas class="field" id="field" aria-hidden="true"></canvas>
+<div class="shell">
+<p class="eyebrow">${esc(SITE_KICKER)}</p>
+<h1><span class="kin">Adhiraj</span> <span class="kin">Singh</span></h1>
+<p class="thesis">I build <b>deterministic systems</b> around large, unreliable models — and write about what breaks.</p>
+</div>
+<div class="scroll-cue"><span class="bar"></span> scroll</div>
+</header>
+
+<main>
+<section class="section" id="writing">
+<div class="shell">
+<div class="sec-head reveal">
+<span class="sec-label"><span class="idx">01</span> Selected Writing</span>
+<span class="sec-note">${posts.length} ${posts.length === 1 ? "entry" : "entries"} · newest first</span>
+</div>
+<div class="entries">
+${entriesHtml || '<p class="sec-note">No posts yet.</p>'}
 </div>
 </div>
+</section>
+
+<section class="section" id="about">
+<div class="shell">
+<div class="sec-head reveal"><span class="sec-label"><span class="idx">02</span> About</span></div>
+<div class="about reveal">
+<p class="lede">${esc(SITE_ROLE)}</p>
+<p class="body">${esc(SITE_ABOUT)}</p>
+</div>
+</div>
+</section>
+
+<section class="section" id="channels">
+<div class="shell">
+<div class="sec-head reveal">
+<span class="sec-label"><span class="idx">03</span> Channels</span>
+<span class="sec-note">reach me</span>
+</div>
+<div class="channels reveal">
+${channelsHtml}
+</div>
+</div>
+</section>
+</main>
 ${footerHtml}`;
+
+const homeScript = `<script>
+(function () {
+  var c = document.getElementById('field'); if (!c) return;
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var ctx = c.getContext('2d'), DPR = Math.min(window.devicePixelRatio || 1, 2);
+  var w = 0, h = 0, nodes = [], mx = -999, my = -999;
+  function accentRGB() {
+    var x = (getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#5b8cff').trim().replace('#','');
+    if (x.length === 3) x = x[0]+x[0]+x[1]+x[1]+x[2]+x[2];
+    var n = parseInt(x, 16); return (n>>16&255)+','+(n>>8&255)+','+(n&255);
+  }
+  var rgb = accentRGB();
+  function size() { w = c.clientWidth; h = c.clientHeight; c.width = w*DPR; c.height = h*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); }
+  function init() { var count = Math.max(24, Math.min(90, Math.round(w*h/16000))); nodes = []; for (var i=0;i<count;i++) nodes.push({ x:Math.random()*w, y:Math.random()*h, vx:(Math.random()-.5)*.28, vy:(Math.random()-.5)*.28 }); }
+  function frame() {
+    ctx.clearRect(0,0,w,h);
+    var i, j, a, b;
+    for (i=0;i<nodes.length;i++){ a=nodes[i]; a.x+=a.vx; a.y+=a.vy; if(a.x<0||a.x>w)a.vx*=-1; if(a.y<0||a.y>h)a.vy*=-1; }
+    for (i=0;i<nodes.length;i++){ for(j=i+1;j<nodes.length;j++){ a=nodes[i]; b=nodes[j]; var dx=a.x-b.x, dy=a.y-b.y, d=Math.sqrt(dx*dx+dy*dy); if(d<126){ ctx.strokeStyle='rgba('+rgb+','+((1-d/126)*.32)+')'; ctx.lineWidth=.6; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); } } }
+    for (i=0;i<nodes.length;i++){ a=nodes[i]; var dm=Math.sqrt((a.x-mx)*(a.x-mx)+(a.y-my)*(a.y-my)); var near=dm<175; ctx.fillStyle='rgba('+rgb+','+(near?.95:.5)+')'; ctx.beginPath(); ctx.arc(a.x,a.y,near?2.6:1.5,0,6.2832); ctx.fill(); if(near){ ctx.strokeStyle='rgba('+rgb+','+((1-dm/175)*.5)+')'; ctx.lineWidth=.7; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(mx,my); ctx.stroke(); } }
+    if (!reduce) requestAnimationFrame(frame);
+  }
+  addEventListener('resize', function(){ size(); init(); });
+  addEventListener('pointermove', function(e){ var r=c.getBoundingClientRect(); mx=e.clientX-r.left; my=e.clientY-r.top; });
+  size(); init(); frame();
+})();
+</script>`;
 
 fs.writeFileSync(
   path.join(DIST, "index.html"),
-  pageShell({ title: SITE_TITLE, body: home, cssPath: "./styles.css", bodyClass: "home" })
+  pageShell({ title: SITE_TITLE, body: home, base: "./", bodyClass: "home", head: homeScript })
 );
 
 console.log(`Done. ${posts.length} post(s) -> dist/`);
