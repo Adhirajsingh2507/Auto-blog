@@ -149,7 +149,7 @@ function pageShell({ title, body, base, bodyClass, head = "" }) {
 <title>${esc(title)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="${base}styles.css">
 </head>
 <body class="${bodyClass}">
@@ -180,6 +180,7 @@ fs.rmSync(DIST, { recursive: true, force: true });
 fs.mkdirSync(DIST, { recursive: true });
 fs.copyFileSync(path.join(TEMPLATE_DIR, "styles.css"), path.join(DIST, "styles.css"));
 fs.copyFileSync(path.join(TEMPLATE_DIR, "app.js"), path.join(DIST, "app.js"));
+fs.copyFileSync(path.join(TEMPLATE_DIR, "sky.webm"), path.join(DIST, "sky.webm"));
 
 const posts = [];
 const usedSlugs = new Set();
@@ -218,13 +219,12 @@ for (const dir of dirs) {
   copyDir(dirPath, path.join(DIST, slug));
   fs.rmSync(path.join(DIST, slug, "index.md"), { force: true }); // don't ship the source
 
-  const article = `<nav class="nav">
-<a class="brand magnetic" href="../index.html"><b>Adhiraj</b> Singh</a>
-<div class="nav-right">
-<a class="cmdk-btn magnetic" href="../index.html">Index</a></div>
-</nav>
+  const article = `<div class="bar">
+<a class="brand" href="../index.html"><b>Adhiraj</b> Singh</a>
+<a class="right" href="../index.html">← Index</a>
+</div>
 <main class="article">
-<a class="back magnetic" href="../index.html">&larr; All writing</a>
+<a class="back" href="../index.html">&larr; All writing</a>
 <article class="reveal">
 <header>
 ${meta.date ? `<time datetime="${esc(meta.date)}">${esc(meta.date)}</time>` : ""}
@@ -247,112 +247,145 @@ ${footerHtml}`;
 // newest first; posts without a date sink to the bottom
 posts.sort((a, b) => (b.date || "").localeCompare(a.date || "") || a.title.localeCompare(b.title));
 
-// --- home page -------------------------------------------------------------
-const entriesHtml = posts
-  .map((p, i) => {
-    const num = String(i + 1).padStart(2, "0");
-    return `<a class="entry reveal" style="--d:${(i % 4) * 60}ms" href="./${p.slug}/index.html">
-<span class="n">${num}</span>
-<div class="mid">
+// --- home page: 5-scene cinematic reel --------------------------------------
+const picks = posts.slice(0, 3);
+const picksHtml = picks
+  .map(
+    (p, i) => `<a class="pick" href="./${p.slug}/index.html">
+<span class="rank">0${i + 1}</span>
+<span class="mid">
 ${p.date ? `<time datetime="${esc(p.date)}">${esc(p.date)}</time>` : ""}
-<h3>${esc(p.title)}</h3>
-${p.description ? `<p class="desc">${esc(p.description)}</p>` : ""}
-</div>
+<span class="pick-title">${esc(p.title)}</span>
+</span>
 <span class="go" aria-hidden="true">&#8599;</span>
-</a>`;
-  })
+</a>`
+  )
   .join("\n");
 
-const channelsHtml = SITE_LINKS.map(
-  (l, i) =>
-    `<a class="channel magnetic" href="${esc(l.url)}"${extAttr(l.url)}>
-<span class="idx">${String(i + 1).padStart(2, "0")}</span>
-<span class="name">${esc(l.label)}</span>
-<span class="handle">${esc(handleOf(l.url))} &#8599;</span>
-</a>`
+// Three counters (Numbers scene) — drawn from the real writing.
+const STATS = [
+  { target: posts.length, suffix: "", label: "Essays published" },
+  { target: 13, suffix: "×", label: "Biggest speedup shipped" },
+  { target: 70, suffix: "B", label: "Largest model wrangled" },
+];
+const statsHtml = STATS.map(
+  (s) => `<div class="stat">
+<span class="num" data-target="${s.target}" data-suffix="${esc(s.suffix)}">0<span class="suf">${esc(s.suffix)}</span></span>
+<span class="stat-label">${esc(s.label)}</span>
+</div>`
 ).join("\n");
 
-const home = `<nav class="nav">
-<a class="brand magnetic" href="#top"><b>Adhiraj</b> Singh</a>
-<div class="nav-right">
-<a href="#writing">Writing</a>
-<a href="#about">About</a>
-<a href="#channels">Channels</a>
-</div>
-</nav>
+const chipsHtml = SITE_LINKS.map(
+  (l) => `<a class="chip" href="${esc(l.url)}"${extAttr(l.url)}>${esc(l.label)}</a>`
+).join("\n");
 
-<header class="hero" id="top">
-<canvas class="field" id="field" aria-hidden="true"></canvas>
-<div class="shell">
-<p class="eyebrow">${esc(SITE_KICKER)}</p>
-<h1><span class="kin">Adhiraj</span> <span class="kin">Singh</span></h1>
-<p class="thesis">I build <b>deterministic systems</b> around large, unreliable models — and write about what breaks.</p>
+const home = `<div class="bar">
+<a class="brand" href="#top"><b>Adhiraj</b> Singh</a>
+<a class="right" href="#" data-skip>Writing &#8595;</a>
 </div>
-<div class="scroll-cue"><span class="bar"></span> scroll</div>
-</header>
+<div class="progress" id="progress"></div>
 
-<main>
-<section class="section" id="writing">
-<div class="shell">
-<div class="sec-head reveal">
-<span class="sec-label"><span class="idx">01</span> Selected Writing</span>
-<span class="sec-note">${posts.length} ${posts.length === 1 ? "entry" : "entries"} · newest first</span>
-</div>
-<div class="entries">
-${entriesHtml || '<p class="sec-note">No posts yet.</p>'}
-</div>
+<div class="reel" id="reel">
+<div class="stage">
+<video id="sky" src="./sky.webm" autoplay muted loop playsinline aria-hidden="true"></video>
+<div class="scenes">
+
+<section class="scene scene-open" data-scene>
+<div class="inner">
+<p class="dive">Scroll to dive in</p>
+<div class="dive-chevron"></div>
 </div>
 </section>
 
-<section class="section" id="about">
-<div class="shell">
-<div class="sec-head reveal"><span class="sec-label"><span class="idx">02</span> About</span></div>
-<div class="about reveal">
-<p class="lede">${esc(SITE_ROLE)}</p>
-<p class="body">${esc(SITE_ABOUT)}</p>
-</div>
+<section class="scene scene-title" data-scene>
+<div class="inner">
+<h1>Adhiraj<br>Singh</h1>
+<p class="sub">Developers making future.</p>
 </div>
 </section>
 
-<section class="section" id="channels">
-<div class="shell">
-<div class="sec-head reveal">
-<span class="sec-label"><span class="idx">03</span> Channels</span>
-<span class="sec-note">reach me</span>
-</div>
-<div class="channels reveal">
-${channelsHtml}
-</div>
+<section class="scene scene-numbers" data-scene>
+<div class="inner">
+<p class="kicker sec-kicker">In numbers</p>
+${statsHtml}
 </div>
 </section>
-</main>
-${footerHtml}`;
+
+<section class="scene scene-picks" data-scene>
+<div class="inner">
+<p class="kicker sec-kicker">Top picks</p>
+${picksHtml || '<p class="stat-label">No posts yet.</p>'}
+</div>
+</section>
+
+<section class="scene scene-close" data-scene>
+<div class="inner">
+<p class="wordmark">Adhiraj Singh</p>
+<p class="closing">Systems that reason — written down.</p>
+<div class="channels">${chipsHtml}</div>
+</div>
+</section>
+
+</div>
+</div>
+</div>`;
 
 const homeScript = `<script>
 (function () {
-  var c = document.getElementById('field'); if (!c) return;
+  var reel = document.getElementById('reel'), sky = document.getElementById('sky');
+  if (!reel) return;
   var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var ctx = c.getContext('2d'), DPR = Math.min(window.devicePixelRatio || 1, 2);
-  var w = 0, h = 0, nodes = [], mx = -999, my = -999;
-  function accentRGB() {
-    var x = (getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#5b8cff').trim().replace('#','');
-    if (x.length === 3) x = x[0]+x[0]+x[1]+x[1]+x[2]+x[2];
-    var n = parseInt(x, 16); return (n>>16&255)+','+(n>>8&255)+','+(n&255);
+  var fallback = matchMedia('(max-width: 860px), (prefers-reduced-motion: reduce)').matches;
+  var progress = 0;
+  if (sky && reduce) { try { sky.pause(); } catch (e) {} }  // honor reduced motion
+
+  // ----- scroll-scrubbed scenes -----
+  if (fallback) return;                        // CSS shows scenes stacked; video plays as ambient bg
+  var scenes = Array.prototype.slice.call(document.querySelectorAll('[data-scene]'));
+  var bar = document.getElementById('progress');
+  // [fadeInStart, fadeInEnd, fadeOutStart, fadeOutEnd] over reel progress 0..1
+  var RANGES = [
+    [-1, -1, 0.06, 0.12],   // open
+    [0.10, 0.17, 0.28, 0.34], // title
+    [0.34, 0.41, 0.56, 0.62], // numbers
+    [0.62, 0.69, 0.82, 0.88], // picks
+    [0.88, 0.93, 2, 2]        // close
+  ];
+  function ramp(p, a, b) { if (a === b) return p >= b ? 1 : 0; return Math.max(0, Math.min(1, (p-a)/(b-a))); }
+  function smooth(t) { return t*t*(3-2*t); }
+  var counted = false;
+  function tick() {
+    var top = reel.offsetTop, span = reel.offsetHeight - window.innerHeight;
+    progress = span > 0 ? Math.max(0, Math.min(1, (window.scrollY - top) / span)) : 0;
+    if (bar) bar.style.width = (progress*100) + '%';
+    if (sky) sky.style.transform = 'scale(' + (1 + progress*0.32).toFixed(3) + ')';  // camera dives into the sky
+    for (var i=0;i<scenes.length;i++) {
+      var r = RANGES[i];
+      var op = smooth(ramp(progress, r[0], r[1])) * (1 - smooth(ramp(progress, r[2], r[3])));
+      var mid = (r[1] + r[2]) / 2, d = progress - mid;
+      var el = scenes[i];
+      el.style.opacity = op.toFixed(3);
+      el.style.transform = 'translateY(' + (-d*90).toFixed(1) + 'px) scale(' + (1 - d*0.18).toFixed(3) + ')';
+      el.style.pointerEvents = op > 0.5 ? 'auto' : 'none';
+    }
+    if (!counted && progress > 0.37) { counted = true; runCount(); }
+    if (counted && progress < 0.30) counted = false; // allow replay on scroll back up
   }
-  var rgb = accentRGB();
-  function size() { w = c.clientWidth; h = c.clientHeight; c.width = w*DPR; c.height = h*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); }
-  function init() { var count = Math.max(24, Math.min(90, Math.round(w*h/16000))); nodes = []; for (var i=0;i<count;i++) nodes.push({ x:Math.random()*w, y:Math.random()*h, vx:(Math.random()-.5)*.28, vy:(Math.random()-.5)*.28 }); }
-  function frame() {
-    ctx.clearRect(0,0,w,h);
-    var i, j, a, b;
-    for (i=0;i<nodes.length;i++){ a=nodes[i]; a.x+=a.vx; a.y+=a.vy; if(a.x<0||a.x>w)a.vx*=-1; if(a.y<0||a.y>h)a.vy*=-1; }
-    for (i=0;i<nodes.length;i++){ for(j=i+1;j<nodes.length;j++){ a=nodes[i]; b=nodes[j]; var dx=a.x-b.x, dy=a.y-b.y, d=Math.sqrt(dx*dx+dy*dy); if(d<126){ ctx.strokeStyle='rgba('+rgb+','+((1-d/126)*.32)+')'; ctx.lineWidth=.6; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); } } }
-    for (i=0;i<nodes.length;i++){ a=nodes[i]; var dm=Math.sqrt((a.x-mx)*(a.x-mx)+(a.y-my)*(a.y-my)); var near=dm<175; ctx.fillStyle='rgba('+rgb+','+(near?.95:.5)+')'; ctx.beginPath(); ctx.arc(a.x,a.y,near?2.6:1.5,0,6.2832); ctx.fill(); if(near){ ctx.strokeStyle='rgba('+rgb+','+((1-dm/175)*.5)+')'; ctx.lineWidth=.7; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(mx,my); ctx.stroke(); } }
-    if (!reduce) requestAnimationFrame(frame);
+  function runCount() {
+    document.querySelectorAll('.scene-numbers .num').forEach(function (el) {
+      var target = +el.getAttribute('data-target'), suf = el.getAttribute('data-suffix') || '', t0 = performance.now(), dur = 1300;
+      (function step(now){
+        var t = Math.min(1, (now - t0)/dur), val = Math.round(target * (1 - Math.pow(1-t, 3)));
+        el.innerHTML = val + '<span class="suf">' + suf + '</span>';
+        if (t < 1) requestAnimationFrame(step);
+      })(t0);
+    });
   }
-  addEventListener('resize', function(){ size(); init(); });
-  addEventListener('pointermove', function(e){ var r=c.getBoundingClientRect(); mx=e.clientX-r.left; my=e.clientY-r.top; });
-  size(); init(); frame();
+  addEventListener('scroll', tick, { passive: true });
+  addEventListener('resize', tick);
+  var skip = document.querySelector('[data-skip]');
+  if (skip) skip.addEventListener('click', function (e) { e.preventDefault(); window.scrollTo({ top: reel.offsetTop + (reel.offsetHeight - window.innerHeight) * 0.72, behavior: 'smooth' }); });
+  tick();
 })();
 </script>`;
 
