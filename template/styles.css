@@ -142,34 +142,47 @@ body.loaded .intro { opacity: 0; }
   .reel { display: none; }
   .fallback { display: block; }
 }
-.fb-hero { position: relative; min-height: 92vh; display: flex; flex-direction: column; justify-content: center;
-  padding: 120px clamp(24px,7vw,64px) 80px; overflow: hidden; }
+.fb-hero { position: relative; min-height: 100svh; display: flex; flex-direction: column; justify-content: center;
+  padding: 84px clamp(22px,7vw,56px); overflow: hidden; }
 .fb-hero video, .fb-hero .fb-neb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
-.fb-hero video { opacity: .5; mix-blend-mode: lighten; }
+.fb-hero video { opacity: .55; mix-blend-mode: lighten; filter: contrast(1.05) saturate(1.14); }
 .fb-hero .fb-neb { background:
-    radial-gradient(58% 40% at 26% 20%, rgba(138,147,214,.4), rgba(22,24,38,0) 70%),
-    radial-gradient(120% 90% at 50% 60%, rgba(22,24,38,0) 20%, #161826 92%); }
+    radial-gradient(60% 42% at 28% 22%, rgba(138,147,214,.42), rgba(22,24,38,0) 70%),
+    radial-gradient(120% 92% at 50% 62%, rgba(22,24,38,0) 16%, #161826 92%); }
+.fb-brand { position: absolute; top: 26px; left: clamp(22px,7vw,56px); z-index: 2;
+  font-size: .66rem; letter-spacing: .22em; text-transform: uppercase; color: var(--text); opacity: .9; }
 .fb-hero .inner { position: relative; z-index: 1; }
-.fb-hero .name { font-size: clamp(3rem,15vw,6rem); font-weight: 600; letter-spacing: -.04em; line-height: .95; margin: 14px 0 0; }
-.fb-hero .sub { font-size: clamp(1.2rem,5vw,1.8rem); color: var(--muted); margin: 16px 0 0; }
-.fb-sec { padding: clamp(64px,12vh,110px) clamp(24px,7vw,64px); border-top: 1px solid var(--divider); max-width: 760px; margin: 0 auto; }
-.fb-sec > .kicker { font-size: .74rem; letter-spacing: .28em; }
-.fb-stat { display: flex; align-items: baseline; gap: 18px; padding: 16px 0; border-bottom: 1px solid var(--divider); }
-.fb-stat:first-of-type { border-top: 1px solid var(--divider); margin-top: 22px; }
-.fb-stat .n { font: 500 clamp(2.6rem,12vw,4.2rem)/1 var(--mono); letter-spacing: -.03em; min-width: 3.5ch; }
+.fb-eyebrow { font-family: var(--mono); font-size: .66rem; letter-spacing: .26em; text-transform: uppercase;
+  color: var(--accent); margin: 0; display: flex; align-items: center; gap: 10px; }
+.fb-eyebrow::before { content: ""; width: 26px; height: 1px; background: var(--accent); }
+.fb-hero .name { font-size: clamp(3.2rem,17vw,5.4rem); font-weight: 600; letter-spacing: -.045em; line-height: .92;
+  margin: 20px 0 0; text-wrap: balance; text-shadow: 0 4px 40px rgba(0,0,0,.5); }
+.fb-hero .sub { font-size: clamp(1.15rem,5vw,1.6rem); color: var(--accent-2); margin: 16px 0 0; letter-spacing: -.01em; }
+.fb-cue { margin-top: 40px; font-size: .62rem; letter-spacing: .28em; text-transform: uppercase; color: var(--faint);
+  display: inline-flex; align-items: center; gap: 8px; }
+.fb-cue span { display: inline-block; animation: fbcue 1.8s ease-in-out infinite; }
+@keyframes fbcue { 0%,100%{ transform: translateY(0); opacity: .5 } 50%{ transform: translateY(4px); opacity: 1 } }
+
+.fb-sec { padding: clamp(56px,11vh,96px) clamp(22px,7vw,56px); border-top: 1px solid var(--divider); max-width: 720px; margin: 0 auto; }
+.fb-sec > .kicker { display: block; font-size: .66rem; letter-spacing: .26em; margin-bottom: 6px; }
+.fb-stat { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; padding: 18px 0; border-bottom: 1px solid var(--divider); }
+.fb-stat:first-of-type { border-top: 1px solid var(--divider); margin-top: 24px; }
+.fb-stat .n { font: 500 clamp(2.8rem,13vw,4rem)/1 var(--mono); letter-spacing: -.03em; }
 .fb-stat .n .suf { color: var(--accent); }
-.fb-stat .l { font-family: var(--mono); font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-.fb-pick { display: grid; grid-template-columns: 2.4rem 1fr; gap: 16px; align-items: baseline;
-  padding: 20px 0; border-top: 1px solid var(--divider); color: var(--text); }
+.fb-stat .l { font-family: var(--mono); font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); text-align: right; max-width: 9ch; }
+.fb-pick { display: grid; grid-template-columns: 1.8rem 1fr auto; gap: 14px; align-items: center;
+  padding: 22px 0; border-top: 1px solid var(--divider); color: var(--text); }
 .fb-list .fb-pick:last-of-type { border-bottom: 1px solid var(--divider); }
-.fb-pick .r { font-family: var(--mono); color: var(--accent); font-size: .8rem; }
-.fb-pick .t { font-size: clamp(1.3rem,5vw,1.9rem); font-weight: 600; letter-spacing: -.02em; line-height: 1.1; }
-.fb-pick time { font-family: var(--mono); font-size: .72rem; color: var(--muted); }
-.fb-pick:hover .t { color: var(--accent); }
-.fb-chips { display: flex; flex-wrap: wrap; gap: 10px 12px; margin-top: 22px; }
-.fb-chips a { font-family: var(--mono); font-size: .8rem; color: var(--text); border: 1px solid var(--divider);
-  border-radius: 999px; padding: 9px 18px; }
-.fb-chips a:hover { color: var(--accent); border-color: var(--accent); }
+.fb-pick .r { align-self: start; padding-top: 5px; font-family: var(--mono); color: var(--accent); font-size: .74rem; }
+.fb-pt { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.fb-pick .t { font-size: clamp(1.25rem,5.2vw,1.7rem); font-weight: 600; letter-spacing: -.02em; line-height: 1.14; }
+.fb-pick time { font-family: var(--mono); font-size: .68rem; letter-spacing: .06em; color: var(--muted); }
+.fb-go { font-family: var(--mono); color: var(--faint); }
+.fb-pick:hover .t, .fb-pick:active .t, .fb-pick:hover .fb-go, .fb-pick:active .fb-go { color: var(--accent); }
+.fb-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.fb-chips a { font-family: var(--mono); font-size: .78rem; color: var(--text); border: 1px solid var(--divider);
+  border-radius: 999px; padding: 11px 22px; transition: color .2s, border-color .2s, background .2s; }
+.fb-chips a:hover, .fb-chips a:active { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 
 /* ===================================================================
    POST PAGE

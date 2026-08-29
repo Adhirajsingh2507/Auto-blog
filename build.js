@@ -197,6 +197,8 @@ fs.copyFileSync(path.join(TEMPLATE_DIR, "app.js"), path.join(DIST, "app.js"));
 for (let i = 0; i < 5; i++)
   fs.copyFileSync(path.join(TEMPLATE_DIR, `clip${i}.webm`), path.join(DIST, `clip${i}.webm`));
 fs.copyFileSync(path.join(TEMPLATE_DIR, "poster.jpg"), path.join(DIST, "poster.jpg"));
+fs.copyFileSync(path.join(TEMPLATE_DIR, "mob.webm"), path.join(DIST, "mob.webm"));           // lightweight mobile sky
+fs.copyFileSync(path.join(TEMPLATE_DIR, "mob-poster.jpg"), path.join(DIST, "mob-poster.jpg"));
 
 const posts = [];
 const usedSlugs = new Set();
@@ -345,20 +347,22 @@ ${SITE_LINKS.map((l) => `<a class="cbtn magnetic" href="${esc(l.url)}"${extAttr(
 <div class="fallback">
 <div class="fb-hero">
 <div class="fb-neb"></div>
-<video src="./clip0.webm" poster="./poster.jpg" muted loop playsinline autoplay aria-hidden="true"></video>
+<video src="./mob.webm" poster="./mob-poster.jpg" muted loop playsinline autoplay preload="auto" aria-hidden="true"></video>
+<div class="fb-brand mono">Adhiraj Singh</div>
 <div class="inner">
-<p class="kicker" style="color:var(--accent);font-size:.74rem;letter-spacing:.28em">${esc(SITE_KICKER)} · 2026</p>
+<p class="fb-eyebrow">${esc(SITE_KICKER)} · 2026</p>
 <h1 class="name">Adhiraj Singh</h1>
 <p class="sub">Developers making future</p>
+<div class="fb-cue mono">Scroll <span>&#8595;</span></div>
 </div>
 </div>
-<div class="fb-sec"><p class="kicker">in numbers</p>
+<div class="fb-sec reveal"><p class="kicker">in numbers</p>
 ${STATS.map((s) => `<div class="fb-stat"><span class="n">${s.target}<span class="suf">${esc(s.suffix)}</span></span><span class="l">${esc(s.label)}</span></div>`).join("\n")}
 </div>
-<div class="fb-sec"><p class="kicker">selected writing</p><div class="fb-list">
-${picks.map((p, i) => `<a class="fb-pick" href="./${p.slug}/index.html"><span class="r">0${i + 1}</span><span><span class="t">${esc(p.title)}</span><br>${p.date ? `<time>${esc(p.date)}</time>` : ""}</span></a>`).join("\n")}
+<div class="fb-sec reveal"><p class="kicker">selected writing</p><div class="fb-list">
+${picks.map((p, i) => `<a class="fb-pick" href="./${p.slug}/index.html"><span class="r">0${i + 1}</span><span class="fb-pt"><span class="t">${esc(p.title)}</span>${p.date ? `<time>${esc(p.date)}</time>` : ""}</span><span class="fb-go" aria-hidden="true">&#8599;</span></a>`).join("\n")}
 </div></div>
-<div class="fb-sec"><p class="kicker">channels</p><div class="fb-chips">${chipsHtml}</div></div>
+<div class="fb-sec reveal"><p class="kicker">channels</p><div class="fb-chips">${chipsHtml}</div></div>
 ${footerHtml}
 </div>`;
 
