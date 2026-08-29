@@ -2,6 +2,7 @@
 title: How to Write Posts
 date: 2026-08-09
 description: A short guide to adding new posts in Markdown or HTML. Delete this whenever you like.
+draft: true
 -->
 
 This post is written in **Markdown** (`index.md`). You can also write posts in
