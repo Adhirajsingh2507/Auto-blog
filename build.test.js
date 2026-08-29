@@ -19,5 +19,16 @@ assert(!md.includes("<script>"), "escapes html");
 
 assert.equal(parseMeta("<!--\ntitle: X\ndate: 2026-01-01\n-->\nbody").title, "X", "meta title");
 assert.equal(parseMeta("# Fallback\n\nbody").title, "Fallback", "md h1 fallback");
+assert.equal(parseMeta("<!--\ntitle: X\ndraft: true\n-->\nb").draft, "true", "meta draft");
+
+// GFM tables (regression for the object-tracker article)
+const tbl = parseMarkdown("| A | B |\n|---|--:|\n| `x` | **y** |\n| 1 | 2 |");
+assert(tbl.includes('<div class="table-wrap"><table>'), "table wrap");
+assert(tbl.includes("<thead><tr><th>A</th>"), "table header");
+assert(tbl.includes('<td style="text-align:right"><strong>y</strong></td>'), "table cell align + inline");
+assert(tbl.includes("<td><code>x</code></td>"), "table cell inline code");
+assert(!tbl.includes("| A | B |"), "no raw table markdown leaks");
+// a lone --- is still a horizontal rule, not a table
+assert(parseMarkdown("a\n\n---\n\nb").includes("<hr>"), "hr still works");
 
 console.log("build.test.js: all passed");

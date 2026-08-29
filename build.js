@@ -59,7 +59,7 @@ function parseMeta(html) {
   const m = html.match(/<!--([\s\S]*?)-->/);
   if (m) {
     for (const line of m[1].split("\n")) {
-      const kv = line.match(/^\s*(title|date|description)\s*:\s*(.+?)\s*$/i);
+      const kv = line.match(/^\s*(title|date|description|draft)\s*:\s*(.+?)\s*$/i);
       if (kv) meta[kv[1].toLowerCase()] = kv[2];
     }
   }
@@ -100,7 +100,13 @@ function parseMarkdown(src) {
   const flushQuote = () => { if (quote.length) { out.push(`<blockquote>${inline(quote.join(" "))}</blockquote>`); quote = []; } };
   const flushAll = () => { flushPara(); flushList(); flushQuote(); };
 
-  for (const line of lines) {
+  // GFM tables: a header row, a |---|:-:| delimiter row (2+ columns), then body rows.
+  const isTableDelim = (s) => /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)+\|?\s*$/.test(s);
+  const rowCells = (s) => { let t = s.trim(); if (t.startsWith("|")) t = t.slice(1); if (t.endsWith("|")) t = t.slice(0, -1); return t.split("|").map((c) => c.trim()); };
+  const alignOf = (c) => { const l = c.startsWith(":"), r = c.endsWith(":"); return l && r ? "center" : r ? "right" : l ? "left" : ""; };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const fenceMatch = line.match(/^```(.*)$/);
     if (fence !== null) {
       if (fenceMatch) { out.push(`<pre><code>${esc(fence.join("\n"))}</code></pre>`); fence = null; }
@@ -111,6 +117,22 @@ function parseMarkdown(src) {
 
     if (/^\s*$/.test(line)) { flushAll(); continue; }
     if (/^\s*(---|\*\*\*|___)\s*$/.test(line)) { flushAll(); out.push("<hr>"); continue; }
+
+    // table (current line has a pipe and the next line is a delimiter row)
+    if (line.indexOf("|") !== -1 && i + 1 < lines.length && isTableDelim(lines[i + 1])) {
+      flushAll();
+      const headers = rowCells(line);
+      const aligns = rowCells(lines[i + 1]).map(alignOf);
+      const rows = [];
+      let j = i + 2;
+      for (; j < lines.length && !/^\s*$/.test(lines[j]) && lines[j].indexOf("|") !== -1; j++) rows.push(rowCells(lines[j]));
+      const cell = (c, tag, a) => `<${tag}${a ? ` style="text-align:${a}"` : ""}>${inline(c || "")}</${tag}>`;
+      const thead = `<thead><tr>${headers.map((h, k) => cell(h, "th", aligns[k])).join("")}</tr></thead>`;
+      const tbody = `<tbody>${rows.map((r) => `<tr>${headers.map((_, k) => cell(r[k], "td", aligns[k])).join("")}</tr>`).join("")}</tbody>`;
+      out.push(`<div class="table-wrap"><table>${thead}${tbody}</table></div>`);
+      i = j - 1;
+      continue;
+    }
 
     const h = line.match(/^(#{1,6})\s+(.+?)\s*$/);
     if (h) { flushAll(); out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); continue; }
@@ -146,7 +168,7 @@ function copyDir(src, dest) {
   }
 }
 
-function pageShell({ title, body, base, bodyClass, head = "", desc = SITE_DESC }) {
+function pageShell({ title, body, base, bodyClass, head = "", desc = SITE_DESC, canonical = SITE_URL + "/", ogType = "website", jsonld = "" }) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -154,19 +176,27 @@ function pageShell({ title, body, base, bodyClass, head = "", desc = SITE_DESC }
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(desc)}">
+<link rel="canonical" href="${esc(canonical)}">
+<meta name="robots" content="index,follow">
 <meta name="theme-color" content="#161826">
 <link rel="icon" href="${FAVICON}">
-<meta property="og:type" content="website">
+<meta property="og:type" content="${ogType}">
+<meta property="og:site_name" content="${esc(SITE_TITLE)}">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(desc)}">
+<meta property="og:url" content="${esc(canonical)}">
 <meta property="og:image" content="${SITE_URL}/poster.jpg">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(title)}">
+<meta name="twitter:description" content="${esc(desc)}">
+<meta name="twitter:image" content="${SITE_URL}/poster.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="${base}styles.css">
-</head>
+${jsonld ? `<script type="application/ld+json">${jsonld}</script>\n` : ""}</head>
 <body class="${bodyClass}">
+<a class="skip" href="#main">Skip to content</a>
 ${body}
 ${head}
 <script src="${base}app.js" defer></script>
@@ -181,6 +211,9 @@ if (require.main !== module) return;
 const isMail = (u) => u.startsWith("mailto:");
 const extAttr = (u) => (isMail(u) ? "" : ' target="_blank" rel="noopener"');
 const handleOf = (u) => (isMail(u) ? u.slice(7) : u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""));
+// JSON-LD: stringify and neutralize any "<" so the inline <script> can't be broken out of
+const ld = (obj) => JSON.stringify(obj).replace(/</g, "\\u003c");
+const AUTHOR = { "@type": "Person", name: SITE_TITLE, url: SITE_URL + "/", sameAs: SITE_LINKS.filter((l) => !isMail(l.url)).map((l) => l.url) };
 
 const footerHtml = `<footer class="site-footer"><div class="shell">
 <nav class="footer-links">${SITE_LINKS.map(
@@ -226,6 +259,11 @@ for (const dir of dirs) {
     continue;
   }
   const meta = parseMeta(raw);
+  // drafts are excluded from the public build — no page, no listing, no count
+  if (/^(true|1|yes)$/i.test((meta.draft || "").trim())) {
+    console.log(`  --  ${dir.name} (draft, skipped)`);
+    continue;
+  }
   const title = meta.title || dir.name;
   const bodyHtml = isMd ? parseMarkdown(stripMeta(raw)) : stripMeta(raw);
 
@@ -237,11 +275,12 @@ for (const dir of dirs) {
   copyDir(dirPath, path.join(DIST, slug));
   fs.rmSync(path.join(DIST, slug, "index.md"), { force: true }); // don't ship the source
 
+  const canonical = `${SITE_URL}/${slug}/`;
   const article = `<div class="bar">
 <a class="brand magnetic" href="../index.html"><b>Adhiraj</b> Singh</a>
 <a class="right magnetic" href="../index.html">← Index</a>
 </div>
-<main class="article">
+<main id="main" class="article">
 <a class="back magnetic" href="../index.html">&larr; All writing</a>
 <article class="reveal">
 <header>
@@ -253,9 +292,24 @@ ${bodyHtml}
 </main>
 ${footerHtml}`;
 
+  const postJsonld = ld({
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: title,
+    description: meta.description || SITE_DESC,
+    datePublished: meta.date || undefined,
+    dateModified: meta.date || undefined,
+    url: canonical,
+    mainEntityOfPage: canonical,
+    image: SITE_URL + "/poster.jpg",
+    author: AUTHOR,
+    publisher: { "@type": "Person", name: SITE_TITLE },
+  });
+
   fs.writeFileSync(
     path.join(DIST, slug, "index.html"),
-    pageShell({ title: `${title} — ${SITE_TITLE}`, body: article, base: "../", bodyClass: "post", desc: meta.description || SITE_DESC })
+    pageShell({ title: `${title} — ${SITE_TITLE}`, body: article, base: "../", bodyClass: "post",
+      desc: meta.description || SITE_DESC, canonical, ogType: "article", jsonld: postJsonld })
   );
 
   posts.push({ slug, title, date: meta.date || "", description: meta.description || "" });
@@ -282,7 +336,7 @@ const clipsHtml = [0, 1, 2, 3, 4]
 const numBlocksHtml = STATS.map(
   (s, i) => `<div class="block b-num" data-target="${s.target}" data-dec="${s.dec}" data-suffix="${esc(s.suffix)}">
 <div class="col"><div class="row"><div class="dot"></div><div class="k kicker">0${i + 1} / ${esc(s.label)}</div></div>
-<div class="val">0${esc(s.suffix)}</div></div></div>`
+<div class="val">${s.dec ? s.target.toFixed(1) : s.target}${esc(s.suffix)}</div></div></div>`
 ).join("\n");
 const pickRowsHtml = picks
   .map(
@@ -295,6 +349,7 @@ const pickRowsHtml = picks
 
 const home = `<div class="intro" id="intro" aria-hidden="true"></div>
 <div class="grain" aria-hidden="true"></div>
+<main id="main">
 <div class="reel" id="reel">
 <div class="stage"><div class="frame" id="frame">
 
@@ -316,8 +371,8 @@ ${clipsHtml}
 
 <div class="block b-title" id="bTitle"><div class="col">
 <div class="ey" id="titleEy"><div class="dash" id="titleDash"></div><div class="k kicker">${esc(SITE_KICKER)} · 2026</div></div>
-<div class="name" id="titleName">Adhiraj Singh</div>
-<div class="sub" id="titleSub">Developers making future</div>
+<h1 class="name" id="titleName">Adhiraj Singh</h1>
+<div class="sub" id="titleSub">Developers making the future</div>
 </div></div>
 
 ${numBlocksHtml}
@@ -330,16 +385,16 @@ ${pickRowsHtml || '<div class="p-desc">No posts yet.</div>'}
 <div class="block b-close" id="bClose"><div class="col">
 <div class="cname" id="closeName">Adhiraj Singh</div>
 <div class="line" id="closeLine"></div>
-<div class="k kicker" id="closeKick">developers making future</div>
+<div class="k kicker" id="closeKick">developers making the future</div>
 <div class="close-channels" id="closeChannels">
 ${SITE_LINKS.map((l) => `<a class="cbtn magnetic" href="${esc(l.url)}"${extAttr(l.url)}>${esc(l.label)}</a>`).join("\n")}
 </div>
 </div></div>
 </div>
 
-<div class="chrome chrome-l">adhiraj</div>
-<div class="chrome chrome-r" id="chromeTime">00s / 41s</div>
-<div class="chrome chrome-b"><div class="fill" id="chromeFill"></div></div>
+<div class="chrome chrome-l" aria-hidden="true">adhiraj</div>
+<div class="chrome chrome-r" id="chromeTime" aria-hidden="true">00s / 41s</div>
+<div class="chrome chrome-b" aria-hidden="true"><div class="fill" id="chromeFill"></div></div>
 
 </div></div>
 </div>
@@ -352,7 +407,7 @@ ${SITE_LINKS.map((l) => `<a class="cbtn magnetic" href="${esc(l.url)}"${extAttr(
 <div class="inner">
 <p class="fb-eyebrow">${esc(SITE_KICKER)} · 2026</p>
 <h1 class="name">Adhiraj Singh</h1>
-<p class="sub">Developers making future</p>
+<p class="sub">Developers making the future</p>
 <div class="fb-cue mono">Scroll <span>&#8595;</span></div>
 </div>
 </div>
@@ -364,7 +419,8 @@ ${picks.map((p, i) => `<a class="fb-pick" href="./${p.slug}/index.html"><span cl
 </div></div>
 <div class="fb-sec reveal"><p class="kicker">channels</p><div class="fb-chips">${chipsHtml}</div></div>
 ${footerHtml}
-</div>`;
+</div>
+</main>`;
 
 const homeScript = `<script>
 (function () {
@@ -427,11 +483,18 @@ const homeScript = `<script>
   for(var si=0;si<150;si++) STARDATA.push({ x:(r()-0.5)*3600, y:(r()-0.5)*2400, z:r()*2400, s:1+r()*2.4, a:0.25+r()*0.6, ph:r()*6.283, ts:0.6+r()*1.6 });
   STARDATA.forEach(function(d,i){ var el=document.createElement('div'); el.className='star'; el.style.width=el.style.height=d.s+'px'; el.style.background=(i%9===0)?'var(--accent)':'var(--neutral-300)'; sf.appendChild(el); starEls.push(el); });
 
-  var camZ=0;
+  var camZ=0, counted=[];
   function put(el,z,x,y,extra,far,near){ var zs=camZ-z, op=zOpacity(zs,far,near)*extra;
     if(op<=0.004){ el.style.opacity=0; el.style.visibility='hidden'; return; }
     el.style.visibility=''; el.style.opacity=op;
     el.style.transform='translate(-50%,-50%) translate3d('+x+'px,'+y+'px,'+zs+'px)'; }
+  // count each stat up 0 -> real value once, the first time it scrolls in
+  // (the real value already sits in the HTML, so no-JS / crawlers see it too)
+  function countUp(el){ var v=el.querySelector('.val'), target=+el.getAttribute('data-target'),
+    dec=+el.getAttribute('data-dec'), suf=el.getAttribute('data-suffix')||'', t0=performance.now(), dur=1300;
+    (function step(nw){ var t=Math.min(1,(nw-t0)/dur), n=target*(1-Math.pow(1-t,3));
+      v.textContent=(dec?n.toFixed(1):Math.round(n))+suf;
+      if(t<1) requestAnimationFrame(step); else v.textContent=(dec?target.toFixed(1):target)+suf; })(t0); }
 
   function render(T){
     camZ = camZfn(T);
@@ -470,20 +533,23 @@ const homeScript = `<script>
       var slot=clamp(enter(at-2.6,1.4)(T)-enter(at+3.1,0.9)(T),0,1);
       put(el,c.z,c.x,c.y,slot,-2100,720);
       el.querySelector('.dot').style.transform='scale('+pop(at-0.25,0.5)(T)+')';
-      var target=+el.getAttribute('data-target'), dec=+el.getAttribute('data-dec'), suf=el.getAttribute('data-suffix')||'';
-      var val=animate(0,target,at-1.6,at+1.2,E.outQuart)(T);
-      el.querySelector('.val').textContent=(dec?val.toFixed(1):Math.round(val))+suf; }
+      if(slot>0.05 && !counted[i]){ counted[i]=true; countUp(el); }
+      else if(slot<0.02){ counted[i]=false; } }
     // picks
     put(bPicks,7200,-63,0,1);
     for(var i=0;i<pickRows.length;i++){ var at=CUES.Picks-0.3+i*0.62;
       pickRows[i].style.opacity=enter(at,0.9)(T);
       pickRows[i].style.transform='translateX('+drift(70,0,at,at+1.1)(T)+'px)'; }
-    // close — rests as the final frame (no fade-back-to-sky; this isn't a loop)
+    // close — rests as the final frame (no fade-back-to-sky; this isn't a loop).
+    // each element rises into place in sequence so the ending resolves coherently.
     put(bClose,9000,0,0,1);
     closeName.style.opacity=enter(CUES.Close-0.5,1.1)(T);
-    closeLine.style.width=drift(0,420,CUES.Close,CUES.Close+1.4)(T)+'px';
+    closeName.style.transform='translateY('+drift(30,0,CUES.Close-0.5,CUES.Close+0.9)(T)+'px)';
+    closeLine.style.width=drift(0,420,CUES.Close+0.2,CUES.Close+1.6)(T)+'px';
     closeKick.style.opacity=enter(CUES.Close+0.5,1.0)(T);
+    closeKick.style.transform='translateY('+drift(22,0,CUES.Close+0.5,CUES.Close+1.5)(T)+'px)';
     closeChannels.style.opacity=enter(CUES.Close+0.9,1.1)(T);
+    closeChannels.style.transform='translateY('+drift(20,0,CUES.Close+0.9,CUES.Close+1.9)(T)+'px)';
   }
 
   // smooth "slow-motion" scroll: ease the authored time toward the scroll target
@@ -496,9 +562,44 @@ const homeScript = `<script>
 })();
 </script>`;
 
+const homeJsonld = ld({
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: SITE_TITLE,
+  url: SITE_URL + "/",
+  description: SITE_DESC,
+  author: AUTHOR,
+});
+
 fs.writeFileSync(
   path.join(DIST, "index.html"),
-  pageShell({ title: SITE_TITLE, body: home, base: "./", bodyClass: "home", head: homeScript })
+  pageShell({ title: SITE_TITLE, body: home, base: "./", bodyClass: "home", head: homeScript, canonical: SITE_URL + "/", jsonld: homeJsonld })
+);
+
+// robots.txt + sitemap.xml
+fs.writeFileSync(
+  path.join(DIST, "robots.txt"),
+  `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`
+);
+const lastmod = posts.map((p) => p.date).filter(Boolean).sort().pop() || new Date().toISOString().slice(0, 10);
+const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<url><loc>${SITE_URL}/</loc><lastmod>${lastmod}</lastmod></url>
+${posts.map((p) => `<url><loc>${SITE_URL}/${p.slug}/</loc>${p.date ? `<lastmod>${p.date}</lastmod>` : ""}</url>`).join("\n")}
+</urlset>
+`;
+fs.writeFileSync(path.join(DIST, "sitemap.xml"), sitemap);
+
+// 404 (Vercel serves dist/404.html for unmatched routes)
+const notFound = `<div class="bar"><a class="brand" href="/"><b>Adhiraj</b> Singh</a></div>
+<main id="main" class="article" style="text-align:center">
+<p class="kicker" style="color:var(--accent);letter-spacing:.26em">Error 404</p>
+<h1>Lost in space.</h1>
+<p>That page drifted out of orbit. <a href="/">Head back to the start &rarr;</a></p>
+</main>`;
+fs.writeFileSync(
+  path.join(DIST, "404.html"),
+  pageShell({ title: `Not found — ${SITE_TITLE}`, body: notFound, base: "./", bodyClass: "post", desc: "Page not found.", canonical: SITE_URL + "/404" })
 );
 
 console.log(`Done. ${posts.length} post(s) -> dist/`);
